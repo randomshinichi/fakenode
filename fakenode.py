@@ -20,11 +20,9 @@ def getblocktemplate(wallet_address):
     if not fake_node.synced:
         raise JSONRPCDispatchException(code=-9, message="Core is busy")
 
-    # wallet_address should be used to generate the blocktemplate_blob (coinbase txn)
-
     block = fake_node.blocks[-1]
     result = {
-        "blocktemplate_blob": block.raw_block_merkle_root,
+        "blocktemplate_blob": '00000000' + block.raw_block_merkle_root,
         "difficulty": fake_node.difficulty,
         "status": "OK"
     }
@@ -33,23 +31,26 @@ def getblocktemplate(wallet_address):
 
 
 @api.dispatcher.add_method
-def submitblock(raw_block_merkle_root):
-    return {"status": "OK"}
+def submitblock(raw_block_merkle_root_w_nonce):
+    if fake_node.accept_submitted_blocks:
+        return {"status": "OK"}
+    else:
+        return {"status": "Network accepted another block already"}
 
 
 class FakeBlock:
     def __init__(self, height, epoch):
         self.height = height
         self.timestamp = int(time.time())
-        self.hash = binascii.hexlify(os.urandom(50)).decode()
-        self.prev_hash = binascii.hexlify(os.urandom(50)).decode()
+        self.hash = binascii.hexlify(os.urandom(5)).decode()
+        self.prev_hash = binascii.hexlify(os.urandom(5)).decode()
         self.block_reward = random.randint(100000, 200000)
 
         self.epoch = epoch
-        self.PK = binascii.hexlify(os.urandom(10)).decode()
+        self.PK = binascii.hexlify(os.urandom(4)).decode()
 
-        self.raw_block_merkle_root = binascii.hexlify(os.urandom(60)).decode()
-        self.raw_block_all_txs = binascii.hexlify(os.urandom(120)).decode()
+        self.raw_block_merkle_root = binascii.hexlify(os.urandom(15)).decode()
+        self.raw_block_all_txs = binascii.hexlify(os.urandom(25)).decode()
 
     @property
     def mining_nonce(self):
@@ -91,18 +92,45 @@ def create_block():
     return Response(response=resp, status=200, mimetype='text/plain')
 
 
-@app.route('/set_node_synced')
+@app.route('/synced')
 def set_fake_node_synced():
     fake_node.synced = True
     resp = "fake_node.synced: %s\n" % fake_node.synced
     return Response(response=resp, status=200, mimetype='text/plain')
 
 
-@app.route('/set_node_unsynced')
+@app.route('/unsynced')
 def set_fake_node_unsynced():
     fake_node.synced = False
     resp = "fake_node.synced: %s\n" % fake_node.synced
     return Response(response=resp, status=200, mimetype='text/plain')
+
+
+@app.route('/accept_submitted_blocks')
+def set_node_accept_submitted_blocks():
+    fake_node.accept_submitted_blocks = True
+    resp = "fake_node.accept_submitted_blocks: %s\n" % fake_node.accept_submitted_blocks
+    return Response(response=resp, status=200, mimetype='text/plain')
+
+
+@app.route('/reject_submitted_blocks')
+def set_node_reject_submitted_blocks():
+    fake_node.accept_submitted_blocks = False
+    resp = "fake_node.accept_submitted_blocks: %s\n" % fake_node.accept_submitted_blocks
+    return Response(response=resp, status=200, mimetype='text/plain')
+
+
+@app.route('/inspect_state')
+def inspect_state():
+    import ipdb
+    ipdb.set_trace()
+    return Response(response="done", status=200, mimetype='text/plain')
+
+
+@app.route('/reset_state')
+def reset_state():
+    fake_node.blocks = []
+    return Response(response="done", status=200, mimetype='text/plain')
 
 
 app.run(port=18081, debug=True)
