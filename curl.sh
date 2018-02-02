@@ -1,5 +1,5 @@
-# curl http://127.0.0.1:18081/create_block
-# curl http://127.0.0.1:18081/set_node_synced
+curl http://127.0.0.1:18081/create_block
+curl http://127.0.0.1:18081/synced
 
 
 #curl --data-binary '{"jsonrpc":"2.0","id":"0","method":"getlastblockheader","params":[]}' -H 'content-type:application/json;' http://127.0.0.1:18081/json_rpc | json_pp
