@@ -146,6 +146,9 @@ class State:
 
         self.add_block_to_state(block, blockmetadata)
 
+        # Clear the txpool, assume all transactions went into our blocks already
+        self.empty_txpool()
+
     def add_block_to_state(self, block, blockmetadata):
         """
         To add to the blockchain, you have to record the Block and its BlockMetadata.
