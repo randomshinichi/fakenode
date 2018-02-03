@@ -8,14 +8,19 @@ from pyqrllib.pyqrllib import sha2_256, str2bin, hstr2bin, bin2hstr
 
 class Transaction:
     def __init__(self, tx="tx"):
+        self._timestamp = time.time()
         self.tx = tx
-        self.bytes = self.tx.encode()
 
     def __repr__(self):
         return self.tx
 
     def __str__(self):
         return self.tx
+
+    @property
+    def hash(self):
+        hashable_repr = "{}{}".format(self._timestamp, self.tx)
+        return bin2hstr(sha2_256(hashable_repr.encode('utf8')))
 
 
 class Blockheader:
@@ -65,13 +70,8 @@ class Block:
 
     @staticmethod
     def _generate_tx_merkle_root(transactions):
-        if transactions:
-            result = ()
-            for tx in transactions:
-                result += sha2_256(tx.bytes)
-            return bin2hstr(bytes(result))
-        else:
-            return bin2hstr(bytes((0,)))
+        result = str2bin("".join(tx.hash for tx in transactions))
+        return bin2hstr(sha2_256(result))
 
     def hash(self, nonce, preview=False):
         nonce_blob = hstr2bin(nonce + self.blockheader.mining_hash)
@@ -101,7 +101,7 @@ class State:
         self.difficulty = 1
         self.blocks = []
         self.blockmetadata = {}
-        self.txpool = []
+        self.txpool = {}
 
         self.job = GetBlockTemplateJob()
 
@@ -122,12 +122,12 @@ class State:
         return len(self.blocks)
 
     def fill_txpool(self):
-        count = random.randint(1, 6)
-        txs = [Transaction() for _ in range(count)]
-        self.txpool += txs
+        for _ in range(random.randint(1, 6)):
+            tx = Transaction()
+            self.txpool[tx.hash] = tx
 
     def empty_txpool(self):
-        self.txpool = []
+        self.txpool.clear()
 
     def set_difficulty(self, difficulty):
         # Difficulty only changes when a block is added to the chain.
@@ -139,15 +139,12 @@ class State:
         Convenience function to quickly make the state's blockchain longer.
         """
         previous_block = self.blocks[-1]
-        block = Block(previous_block.blockheader.block_number, self.epoch, previous_block.blockheader.hash, self.txpool)
+        block = Block(previous_block.blockheader.block_number, self.epoch, previous_block.blockheader.hash, list(self.txpool.values()))
         blockmetadata = BlockMetadata(difficulty=self.difficulty)
 
         block.blockheader.hash = block.hash(nonce="00000000", preview=False)
 
         self.add_block_to_state(block, blockmetadata)
-
-        # Clear the txpool, assume all transactions went into our blocks already
-        self.empty_txpool()
 
     def add_block_to_state(self, block, blockmetadata):
         """
@@ -160,6 +157,10 @@ class State:
 
         self.blocks.append(block)
         self.blockmetadata[blockhash] = blockmetadata
+
+        # Remove the Block's Transactions from the Node's txpool
+        for tx in block.transactions:
+            self.txpool.pop(tx.hash, None)
 
     def getlastblockheader(self):
         header = self.blocks[-1].blockheader
@@ -198,7 +199,7 @@ class State:
         # Create a new Job
         prev_block = self.blocks[-1]
         coinbase = Transaction(wallet_address)
-        block = Block(self.height + 1, self.epoch, prev_block.blockheader.hash, [coinbase] + self.txpool)
+        block = Block(self.height + 1, self.epoch, prev_block.blockheader.hash, [coinbase] + list(self.txpool.values()))
         blockmetadata = BlockMetadata(self.difficulty)
 
         # Keep track of the Job we're sending out
