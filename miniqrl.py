@@ -1,10 +1,9 @@
 from math import floor
 import os
 import time
-import binascii
 import random
 
-from pyqrllib.pyqrllib import sha2_256, str2bin
+from pyqrllib.pyqrllib import sha2_256, str2bin, hstr2bin, bin2hstr
 
 
 class Transaction:
@@ -21,7 +20,7 @@ class Transaction:
 
 class Blockheader:
     def __init__(self, block_number, epoch, prev_hash, tx_merkle_root=None):
-        self.PK = binascii.hexlify(os.urandom(4)).decode()
+        self.PK = bin2hstr(os.urandom(4))
         self.epoch = epoch
         self.block_reward = 50
         self.fee_reward = 1
@@ -44,7 +43,7 @@ class Blockheader:
             self.prev_hash,
             self.tx_merkle_root
         )
-        return bytes(sha2_256(str2bin(data)))
+        return bin2hstr(bytes(sha2_256(str2bin(data))))
 
 
 class BlockMetadata:
@@ -70,21 +69,23 @@ class Block:
             result = ()
             for tx in transactions:
                 result += sha2_256(tx.bytes)
-            return result
+            return bin2hstr(bytes(result))
         else:
-            return (0,)
+            return bin2hstr(bytes((0,)))
 
     def hash(self, nonce, preview=False):
-        blockhash = bytes(sha2_256(nonce + self.blockheader.mining_hash))
+        nonce_blob = hstr2bin(nonce + self.blockheader.mining_hash)
+        blockhash = bin2hstr(bytes(sha2_256(nonce_blob)))
         if not preview:
             self.blockheader.hash = blockhash
         return blockhash
 
 
 class GetBlockTemplateJob:
-    def __init__(self, block=None, blockmetadata=None):
+    def __init__(self, block=None, blockmetadata=None, blob=""):
         self.block = block
         self.blockmetadata = blockmetadata
+        self.blob = blob
 
     def __bool__(self):
         return bool(self.block) and bool(self.blockmetadata)
@@ -96,6 +97,7 @@ class GetBlockTemplateJob:
 
 class State:
     def __init__(self):
+        self.synced = True
         self.difficulty = 1
         self.blocks = []
         self.blockmetadata = {}
@@ -107,7 +109,7 @@ class State:
 
         # Generate Genesis block
         genesis = Block(1, 1, None, [])
-        genesis.blockheader.hash = b'00000000' + genesis.blockheader.mining_hash
+        genesis.hash(nonce="00000000")
         self.blocks.append(genesis)
         self.blockmetadata[genesis.blockheader.hash] = BlockMetadata(self.difficulty)
 
@@ -140,7 +142,7 @@ class State:
         block = Block(previous_block.blockheader.block_number, self.epoch, previous_block.blockheader.hash, self.txpool)
         blockmetadata = BlockMetadata(difficulty=self.difficulty)
 
-        block.blockheader.hash = block.hash(nonce=b"0000", preview=False)
+        block.blockheader.hash = block.hash(nonce="00000000", preview=False)
 
         self.add_block_to_state(block, blockmetadata)
 
@@ -174,6 +176,10 @@ class State:
         return answer
 
     def getblocktemplate(self, wallet_address):
+        # Are we synced? If not, don't even try...
+        if not self.synced:
+            raise Exception("Core is busy")
+
         # Do we need to create a new Job?
         if self.job:
             block = self.job.block
@@ -184,32 +190,32 @@ class State:
             job_still_fresh = timestamp_delta <= 10
 
             if (chain_still_the_same and job_still_fresh):
-                return block.blockheader.mining_hash
+                return block.blockheader.mining_hash, self.job.blockmetadata.difficulty
 
         # Create a new Job
         prev_block = self.blocks[-1]
         coinbase = Transaction(wallet_address)
         block = Block(self.height + 1, self.epoch, prev_block.blockheader.hash, [coinbase] + self.txpool)
         blockmetadata = BlockMetadata(self.difficulty)
-        binary_blob = block.blockheader.mining_hash
 
         # Keep track of the Job we're sending out
         self.job.block = block
         self.job.blockmetadata = blockmetadata
+        self.job.blob = block.blockheader.mining_hash
 
-        return binary_blob, blockmetadata.difficulty
+        return self.job.blob, blockmetadata.difficulty
 
-    def submitblock(self, binary_blob):
+    def submitblock(self, blob):
         # We did send out a binary blob to be hashed before, right?
         # otherwise it's just a duplicate submission
         if not self.job:
             return "Umm, I didn't send out any block to be hashed."
 
-        # If the binary_blob is passed in as hex, take the first 8 chars. Otherwise, take the first 4 bytes.
-        nonce = binary_blob[:4]
+        # If the blob is passed in as hex, take the first 8 chars. Otherwise, take the first 4 bytes.
+        nonce = blob[:8]
 
         # rebuild the rest of the blob from self.job, and make make sure they're the same
-        if self.job.block.blockheader.mining_hash != binary_blob[4:]:
+        if self.job.blob != blob[8:]:
             return "This is not the blob I sent you to hash."
 
         # put the nonce and mining_hash together. then make sure it meets the difficulty
@@ -230,4 +236,4 @@ class State:
         # clear our saved Job
         self.job.clear()
 
-        return "Block accepted"
+        return "OK"
