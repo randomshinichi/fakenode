@@ -38,7 +38,7 @@ class Blockheader:
 
     @property
     def mining_hash(self):
-        data = "{0}{1}{2}{3}{4}{5}{6}{7}".format(
+        representation = "{0}{1}{2}{3}{4}{5}{6}{7}".format(
             self.PK,
             self.epoch,
             self.block_reward,
@@ -48,7 +48,9 @@ class Blockheader:
             self.prev_hash,
             self.tx_merkle_root
         )
-        return bin2hstr(bytes(sha2_256(str2bin(data))))
+        # Add the nonce placeholder (4 bytes) to the beginning of the Block representation.
+        blob = hstr2bin("00000000") + str2bin(representation)
+        return bin2hstr(bytes(sha2_256(blob)))
 
 
 class BlockMetadata:
@@ -74,8 +76,9 @@ class Block:
         return bin2hstr(sha2_256(result))
 
     def hash(self, nonce, preview=False):
-        nonce_blob = hstr2bin(nonce + self.blockheader.mining_hash)
-        blockhash = bin2hstr(bytes(sha2_256(nonce_blob)))
+        # nonce (already a hexstring) + mining_hash (already a hexstring)
+        blob_with_new_nonce = nonce + self.blockheader.mining_hash[8:]
+        blockhash = bin2hstr(bytes(sha2_256(hstr2bin(blob_with_new_nonce))))
         if not preview:
             self.blockheader.hash = blockhash
         return blockhash
