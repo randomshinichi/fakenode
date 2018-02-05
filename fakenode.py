@@ -6,7 +6,10 @@ from jsonrpc.exceptions import JSONRPCDispatchException
 
 @api.dispatcher.add_method
 def getlastblockheader():
-    resp = s.getlastblockheader()
+    resp = {
+        "block_header": s.getlastblockheader(),
+        "status": "OK"
+    }
     return resp
 
 
@@ -19,7 +22,9 @@ def getblocktemplate(wallet_address):
 
     resp = {
         "blocktemplate_blob": blob,
-        "difficulty": difficulty
+        "difficulty": difficulty,
+        "height": s.height,
+        "status": "OK"
     }
     return resp
 
