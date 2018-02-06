@@ -77,7 +77,8 @@ def set_params():
         if request.form.get("difficulty"):
             s.difficulty = request.form.get("difficulty")
         if request.form.get("did_difficulty_calculation_pass"):
-            s.did_difficulty_calculation_pass = true_or_false(request.form.get("did_difficulty_calculation_pass"))
+            s.did_difficulty_calculation_pass = true_or_false(
+                request.form.get("did_difficulty_calculation_pass"))
 
     resp = "s.synced = {}\ns.difficulty = {}\ns.did_difficulty_calculation_pass = {}\n".format(
         s.synced, s.difficulty, s.did_difficulty_calculation_pass)

@@ -30,7 +30,8 @@ class Blockheader:
         self.block_reward = 50
         self.fee_reward = 1
         self.timestamp = int(time.time())
-        self.block_number = block_number  # this is like height, except other blocks can exist with the same block_number competing for this height
+        # block_number is like height, except other blocks can exist with the same block_number competing for this height
+        self.block_number = block_number
         self.prev_hash = prev_hash
         self.tx_merkle_root = tx_merkle_root
 
@@ -49,8 +50,7 @@ class Blockheader:
             self.tx_merkle_root
         )
         # Add the nonce placeholder (4 bytes) to the beginning of the Block representation.
-        blob = hstr2bin("00000000") + str2bin(representation)
-        return bin2hstr(bytes(sha2_256(blob)))
+        return "00000000" + bin2hstr(bytes(sha2_256(str2bin(representation))))
 
 
 class BlockMetadata:
@@ -114,7 +114,8 @@ class State:
         genesis = Block(1, 1, None, [])
         genesis.hash(nonce="00000000")
         self.blocks.append(genesis)
-        self.blockmetadata[genesis.blockheader.hash] = BlockMetadata(self.difficulty)
+        self.blockmetadata[genesis.blockheader.hash] = BlockMetadata(
+            self.difficulty)
 
     @property
     def epoch(self):
@@ -142,7 +143,8 @@ class State:
         Convenience function to quickly make the state's blockchain longer.
         """
         previous_block = self.blocks[-1]
-        block = Block(previous_block.blockheader.block_number, self.epoch, previous_block.blockheader.hash, list(self.txpool.values()))
+        block = Block(previous_block.blockheader.block_number, self.epoch,
+                      previous_block.blockheader.hash, list(self.txpool.values()))
         blockmetadata = BlockMetadata(difficulty=self.difficulty)
 
         block.blockheader.hash = block.hash(nonce="00000000", preview=False)
@@ -156,7 +158,8 @@ class State:
         """
         blockhash = block.blockheader.hash
         if not blockhash:
-            raise Exception("Block has an empty hash! calculate the hash first")
+            raise Exception(
+                "Block has an empty hash! calculate the hash first")
 
         self.blocks.append(block)
         self.blockmetadata[blockhash] = blockmetadata
@@ -169,7 +172,8 @@ class State:
         header = self.blocks[-1].blockheader
         blockmetadata = self.blockmetadata[header.hash]
         answer = {
-            "height": self.height,  # not sure if it should come from State or last block's BLockHeader.block_number
+            # not sure if height should come from State or last block's BLockHeader.block_number
+            "height": self.height,
             "timestamp": header.timestamp,
             "hash": header.hash,
             "prev_hash": header.prev_hash,
@@ -202,14 +206,14 @@ class State:
         # Create a new Job
         prev_block = self.blocks[-1]
         coinbase = Transaction(wallet_address)
-        block = Block(self.height + 1, self.epoch, prev_block.blockheader.hash, [coinbase] + list(self.txpool.values()))
+        block = Block(self.height + 1, self.epoch, prev_block.blockheader.hash,
+                      [coinbase] + list(self.txpool.values()))
         blockmetadata = BlockMetadata(self.difficulty)
 
         # Keep track of the Job we're sending out
         self.job.block = block
         self.job.blockmetadata = blockmetadata
         self.job.blob = block.blockheader.mining_hash
-
         return self.job.blob, blockmetadata.difficulty
 
     def submitblock(self, blob):
