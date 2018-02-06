@@ -54,9 +54,10 @@ class Blockheader:
 
 
 class BlockMetadata:
-    def __init__(self, difficulty, orphan=False):
+    def __init__(self, difficulty, nonce=None, orphan=False):
         self.orphan = orphan
         self.difficulty = difficulty
+        self.nonce = nonce
 
 
 class Block:
@@ -114,8 +115,7 @@ class State:
         genesis = Block(1, 1, None, [])
         genesis.hash(nonce="00000000")
         self.blocks.append(genesis)
-        self.blockmetadata[genesis.blockheader.hash] = BlockMetadata(
-            self.difficulty)
+        self.blockmetadata[genesis.blockheader.hash] = BlockMetadata(self.difficulty, nonce="00000000")
 
     @property
     def epoch(self):
@@ -145,7 +145,7 @@ class State:
         previous_block = self.blocks[-1]
         block = Block(previous_block.blockheader.block_number, self.epoch,
                       previous_block.blockheader.hash, list(self.txpool.values()))
-        blockmetadata = BlockMetadata(difficulty=self.difficulty)
+        blockmetadata = BlockMetadata(difficulty=self.difficulty, nonce="00000000")
 
         block.blockheader.hash = block.hash(nonce="00000000", preview=False)
 
@@ -163,6 +163,8 @@ class State:
 
         self.blocks.append(block)
         self.blockmetadata[blockhash] = blockmetadata
+
+        print(block.blockheader.mining_hash, blockmetadata.nonce, block.blockheader.hash)
 
         # Remove the Block's Transactions from the Node's txpool
         for tx in block.transactions:
@@ -208,7 +210,7 @@ class State:
         coinbase = Transaction(wallet_address)
         block = Block(self.height + 1, self.epoch, prev_block.blockheader.hash,
                       [coinbase] + list(self.txpool.values()))
-        blockmetadata = BlockMetadata(self.difficulty)
+        blockmetadata = BlockMetadata(self.difficulty, nonce=None)
 
         # Keep track of the Job we're sending out
         self.job.block = block
@@ -216,17 +218,17 @@ class State:
         self.job.blob = block.blockheader.mining_hash
         return self.job.blob, blockmetadata.difficulty
 
-    def submitblock(self, blob):
+    def submitblock(self, incoming_blob):
         # We did send out a binary blob to be hashed before, right?
         # otherwise it's just a duplicate submission
         if not self.job:
             return "Umm, I didn't send out any block to be hashed."
 
         # If the blob is passed in as hex, take the first 8 chars. Otherwise, take the first 4 bytes.
-        nonce = blob[:8]
+        nonce = incoming_blob[:8]
 
         # rebuild the rest of the blob from self.job, and make make sure they're the same
-        if self.job.blob != blob[8:]:
+        if self.job.blob[8:] != incoming_blob[8:]:
             return "This is not the blob I sent you to hash."
 
         # put the nonce and mining_hash together. then make sure it meets the difficulty
@@ -239,7 +241,9 @@ class State:
             return "We've moved on to other blocks since then"
 
         # Everything passed. Give the block its hard earned hash
+        # Record the nonce used in blockmetadata
         self.job.block.blockheader.hash = blockhash
+        self.job.blockmetadata.nonce = nonce
 
         # Add the block to the chain, and its metadata to our db
         self.add_block_to_state(self.job.block, self.job.blockmetadata)
