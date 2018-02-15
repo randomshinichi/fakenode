@@ -36,7 +36,11 @@ def getblocktemplate(wallet_address):
 def submitblock(binary_blob):
     if not mock:
         # REAL
-        node_req = mining_pb2.SubmitMinedBlockReq(blob=unhexlify(binary_blob))
+        node_req = mining_pb2.SubmitMinedBlockReq(
+            blob=unhexlify(binary_blob),
+            pool_address=state.pool_address,
+            height=state.mining_height
+        )
         node_resp = node_mining_api.SubmitMinedBlock(node_req)
     else:
         # MOCK
