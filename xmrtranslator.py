@@ -4,31 +4,13 @@ from binascii import hexlify, unhexlify
 from flask import Flask
 from jsonrpc.backend.flask import api
 from grpcHelper import grpc_exception_wrapper
+from helpers import State, hexlifystr, build_blockheader_response
 
 channel = grpc.insecure_channel('localhost:50051')
 node_public_api = qrl_pb2_grpc.PublicAPIStub(channel)
 node_mining_api = mining_pb2_grpc.MiningAPIStub(channel)
 mock = True
-
-def hexlifystr(data):
-    return hexlify(data).decode()
-
-def build_blockheader_response(node_info, node_resp):
-    pool_response = {
-        "height": node_resp.blockheader.block_number,
-        "timestamp": node_resp.blockheader.timestamp.seconds,
-        "hash": hexlifystr(node_resp.blockheader.hash_header),
-        "prev_hash": hexlifystr(node_resp.blockheader.hash_header_prev),
-        "block_reward": node_resp.blockheader.reward_block,
-        "epoch": node_resp.blockheader.epoch,
-        "PK": hexlifystr(node_resp.blockheader.PK),
-        "mining_nonce": node_resp.blockheader.mining_nonce,
-        "difficulty": hexlifystr(node_resp.blockmetadata.cumulative_difficulty),
-        "depth": node_info.info.block_height - node_resp.blockheader.block_number,
-        "orphan_status": node_resp.blockmetadata.is_orphan,
-        "status": "OK"
-    }
-    return pool_response
+state = State()
 
 @grpc_exception_wrapper
 @api.dispatcher.add_method
