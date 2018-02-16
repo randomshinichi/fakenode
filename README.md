@@ -1,12 +1,28 @@
-# miniQRL: a mock QRL node that lets you play with stuff
-miniqrl.State is the fake node, and fakenode.py is just the Flask JSON-RPC wrapper around it.
+# translator: translates mining calls between QRL and node-cryptonote-pool
+Only the transfer function is tested so far. Use `--mock` to simulate communicating with the node.
+
+### Installation
+#### Pool
 
 ```
+git clone -b qrl git@github.com:randomshinichi/node-cryptonote-pool.git
+npm install
+apt install -y redis-server
+node init.js
+```
+
+config.json
+* poolServer.poolAddress can be a Qaddress
+* payments.maxAddresses must be 1
+* daemon 127.0.0.1:18081
+* wallet 127.0.0.1:18081
+
+#### Translator
+
+```
+git clone -b grpc git@github.com:randomshinichi/fakenode.git
 pip install -r requirements.txt
-python3 fakenode.py
- * Running on http://127.0.0.1:18081/ (Press CTRL+C to quit)
- * Restarting with stat
- * Debugger is active!
+python xmrtranslator.py --mock
 ```
 
 ### JSON-RPC methods:
@@ -25,23 +41,9 @@ curl --data-binary '{"jsonrpc":"2.0","id":"0","method":"getblocktemplate","param
 curl --data-binary '{"jsonrpc":"2.0","id":"0","method":"submitblock","params":["0564fda5badebe92a966665276f026838ec3ca19bf16262d4a14bb63ff7f7f19"]}' -H 'content-type:application/json;' http://127.0.0.1:18081/json_rpc | json_pp
 ```
 
-### HTTP methods (for debugging/control):
+* `transfer` should fail with multiple destinations
 ```
-GET /add_block
-s.blocks length: 6
-
-GET /txpool/add (adds a random number of txs to the pool)
-s.txpool length: 8
-
-GET /txpool/empty
-s.txpool length: 0
-
-GET/POST /params
-curl http://127.0.0.1:18081/params -X POST -d 'difficulty=10&synced=true&did_difficulty_calculation_pass=true'
-s.synced = True
-s.difficulty = 10
-s.did_difficulty_calculation_pass = True
-You do not have to pass all the params.
-
-GET /ipdb
+curl --data-binary '{"jsonrpc":"2.0","id":"0","method":"transfer","params":{"destinations":[{"amount":10000,"address":"Q00000000000000000000000000000000000000000000000000000000000000000000001"}],"fee":5000000000,"mixin":3,"unlock_time":0}}' -H 'content-type:application/json;' http://127.0.0.1:18081/json_rpc | json_pp
+curl --data-binary '{"jsonrpc":"2.0","id":"0","method":"transfer","params":{"destinations":[{"amount":10000,"address":"Q00000000000000000000000000000000000000000000000000000000000000000000001"},{"amount":20000,"address":"Q00000000000000000000000000000000000000000000000000000000000000000000002"}],"fee":5000000000,"mixin":3,"unlock_time":0}}' -H 'content-type:application/json;' http://127.0.0.1:18081/json_rpc | json_pp
 ```
+
