@@ -1,3 +1,5 @@
+from qrl.core import config
+from qrl.core.Wallet import Wallet
 from binascii import hexlify, unhexlify
 
 class State:
@@ -24,3 +26,18 @@ def build_blockheader_response(node_info, node_resp):
         "status": "OK"
     }
     return pool_response
+
+def get_wallet_addressbundle(args):
+    def find_addressbundle_by_addr(wallet, addr):
+        for i, addr_bundle in enumerate(wallet.address_bundle):
+            if addr_bundle.address == addr:
+                return addr_bundle
+
+    config.user.wallet_dir = args.wallet_dir
+    wallet = Wallet(valid_or_create=False)
+    if not args.pool_address:
+        pool_ab = wallet.address_bundle[0]
+    else:
+        pool_ab = find_addressbundle_by_addr(wallet, args.pool_address)
+    print(wallet.wallet_dat_filename, pool_ab)
+    return pool_ab
